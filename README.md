@@ -9,7 +9,7 @@ Postgres functions (RPCs), enforced by row-level security.
 
 1. Create a project at supabase.com.
 2. In the SQL Editor, run every file in `supabase/migrations/` **in order**
-   (the numeric prefix is the order — 000001 first, 000009 last). Each one
+   (the numeric prefix is the order — 000001 first, 000012 last). Each one
    depends on the ones before it.
 3. Enable the `pg_cron` extension: **Database → Extensions → pg_cron**.
 4. Schedule the weekly trend engine run:
@@ -22,6 +22,8 @@ Postgres functions (RPCs), enforced by row-level security.
    ```
 5. Copy `.env.example` to `.env.local` in the frontend project and fill in
    your project's URL + anon key from **Project Settings → API**.
+6. (Optional, for testing) Run `000012_seed_demo_data.sql` again anytime to
+   reset 5 demo residents with known Flag/Watch/Steady outcomes.
 
 ## What's in each migration
 
@@ -36,6 +38,19 @@ Postgres functions (RPCs), enforced by row-level security.
 | `000007_pairing_codes.sql` | Staff pre-creates residents; device pairs via 6-digit code |
 | `000008_remove_register_resident.sql` | Removes the old typed-name onboarding path (superseded by pairing codes) |
 | `000009_trend_engine.sql` | Baseline calculation + weekly sustained-decline detection |
+| `000010_dashboard_endpoints.sql` | `get_facility_roster`, `get_facility_summary`, `get_resident_weekly_history` |
+| `000011_fix_compute_and_flag_resident.sql` | Hotfix: rewrites the trend engine's metric-list logic using `array_append()` instead of `\|\|`, which was failing with a "malformed array literal" error |
+| `000012_seed_demo_data.sql` | Seeds 5 demo residents (56 days of backdated history each) so the trend engine produces real Flag/Watch/Steady results without waiting 5+ real weeks |
+
+## Functions the frontend calls, grouped by screen
+
+- **Staff signup**: `validate_facility_code`, `create_staff_profile`
+- **Add resident (staff dashboard)**: `create_resident_by_staff` → shows the returned pairing code
+- **Resident onboarding (device)**: `pair_device` → save the returned `resident_id` to local storage
+- **Daily check-in setup**: `get_daily_word_set_for_resident`, `get_daily_fluency_category_for_resident`
+- **Daily check-in submit**: `submit_checkin`
+- **Staff roster/dashboard**: `get_facility_roster`, `get_facility_summary`, `get_resident_weekly_history`
+- **Admin**: `delete_resident`
 
 ## Architecture notes for whoever reads this next
 
@@ -46,14 +61,15 @@ Postgres functions (RPCs), enforced by row-level security.
   `security definer` Postgres function (not a raw table insert), because
   there's no `auth.uid()` to build RLS policies around for an unauthenticated
   resident. The function itself does the safety checking instead.
-- The trend engine won't produce real flags until a resident has 5+ weeks of
-  real history (2 weeks baseline + 3 weeks to detect sustained decline). See
-  the seed-data script (Step 7, not yet built) for how the demo gets around
-  that honestly.
+- The dashboard read functions (`get_facility_roster` etc.) are the opposite —
+  they deliberately run as the *calling* user (no `security definer`), so the
+  existing row-level security policies filter results to that staff member's
+  own facility automatically.
+- `submit_checkin`'s `p_fluency_count` expects the count **after** the
+  resident/staff has confirmed the transcribed words on-screen — the raw
+  speech-to-text output should never be passed straight through.
 
-## Still to build (see project plan)
+## Still to build
 
-- Step 6: dashboard data endpoints (roster, resident detail, facility summary queries)
-- Step 7: seed script for backdated demo data
-- Step 8: hardening pass
-- Step 9: final run-through
+- Step 8: hardening pass (error handling review, response-shape sign-off with frontend)
+- Step 9: final run-through before submission

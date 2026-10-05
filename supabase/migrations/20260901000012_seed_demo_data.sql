@@ -23,16 +23,16 @@ delete from residents where pairing_code in ('900001','900002','900003','900004'
 -- ------------------------------------------------------------
 -- The 5 residents
 -- ------------------------------------------------------------
-insert into residents (facility_id, name, room, pairing_code)
-select f.id, v.name, v.room, v.pairing_code
+insert into residents (facility_id, name, pairing_code)
+select f.id, v.name, v.pairing_code
 from facilities f
 cross join (values
-  ('Kamala Rao',        'Room 12', '900001'),
-  ('Devendra Shah',     'Room 04', '900002'),
-  ('Meera Iyer',        'Room 09', '900003'),
-  ('Anthony Fernandes', 'Room 21', '900004'),
-  ('Rajesh Kumar',      'Room 15', '900005')
-) as v(name, room, pairing_code)
+  ('Kamala Rao',        '900001'),
+  ('Devendra Shah',     '900002'),
+  ('Meera Iyer',        '900003'),
+  ('Anthony Fernandes', '900004'),
+  ('Rajesh Kumar',      '900005')
+) as v(name, pairing_code)
 where f.facility_code = 'SUNRISE01';
 
 -- ------------------------------------------------------------

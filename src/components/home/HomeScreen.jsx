@@ -86,7 +86,7 @@ export default function HomeScreen({ residentName, onStart }) {
 
       <div className="home-bottom">
         <button className="home-start-btn" onClick={onStart}>
-          Start Today's Check-in
+          Start Today&apos;s Check-in
         </button>
       </div>
     </div>

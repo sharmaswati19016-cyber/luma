@@ -1,23 +1,35 @@
-import React, { useState } from "react";
+import React, { startTransition, useEffect, useState } from "react";
+import { getResident } from "../lib/residentSession";
 import HomeScreen from "./components/home/HomeScreen";
+import QuestionScreen from "./components/qna/Questionscreen";
 import "./App.css";
 
 export default function App() {
   const [started, setStarted] = useState(false);
+  const [residentName, setResidentName] = useState("Kamla Rao");
+  const [questionNumber, setQuestionNumber] = useState(1);
+
+  useEffect(() => {
+    const resident = getResident();
+    if (resident?.name) {
+      startTransition(() => setResidentName(resident.name));
+    }
+  }, []);
 
   const handleStart = () => {
+    setQuestionNumber(1);
     setStarted(true);
-    console.log("Check-in started");
   };
 
   return (
     <div className="app-root">
       {!started ? (
-        <HomeScreen residentName="Kamla Rao" onStart={handleStart} />
+        <HomeScreen residentName={residentName} onStart={handleStart} />
       ) : (
-        <div className="app-placeholder">
-          <p>Next screen goes here (word display task)</p>
-        </div>
+        <QuestionScreen
+          question={`Q. ${questionNumber}`}
+          onNext={() => setQuestionNumber((current) => current + 1)}
+        />
       )}
     </div>
   );

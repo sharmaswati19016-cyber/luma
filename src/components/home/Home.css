@@ -22,11 +22,11 @@
 /* ---- Top (terracotta) block ---- */
 .home-top {
   background: var(--color-primary);
-  padding: 28px 24px 24px 24px;
-  min-height: 42vh;
+  padding: 100px 24px 24px;
+  min-height: 54vh;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   position: relative;
 }
 
@@ -43,6 +43,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  gap: 0;
 }
 
 .home-speaker-btn {
@@ -93,7 +94,8 @@
   flex: 1;
   display: flex;
   justify-content: center;
-  padding: 28px 24px;
+  align-items: flex-end;
+  padding: 28px 24px 36px;
 }
 
 .home-start-btn {
@@ -111,4 +113,9 @@
 
 .home-start-btn:active {
   opacity: 0.85;
+}
+
+.home-start-btn:focus-visible {
+  outline: 3px solid var(--color-ink);
+  outline-offset: 3px;
 }

@@ -1,8 +1,13 @@
-import React from "react";
-import sun from "../../assets/sun.png";
-import moon from "../../assets/moon.png";
-import homespeaker from "../../assets/homespeaker.png";
+"use client";
+
+import Image from "next/image";
+import { startTransition, useState, useEffect } from "react";
 import "./Home.css";
+
+// Images live in public/assets/ and are served from /assets/...
+const sun = "/assets/sun.png";
+const moon = "/assets/moon.png";
+const homespeaker = "/assets/homespeaker.png";
 
 /**
  * HomeScreen
@@ -43,11 +48,20 @@ function getFormattedDate(date) {
   const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
   const day = date.getDate();
   const month = date.toLocaleDateString("en-US", { month: "long" });
-  return `${weekday} , ${day}${getOrdinal(day)} ${month}`;
+  return `${weekday}, ${day}${getOrdinal(day)} ${month}`;
 }
 
 export default function HomeScreen({ residentName, onStart }) {
-  const now = new Date();
+  // The time is read in the browser only (after the page loads),
+  // so the server's clock never decides the greeting.
+  const [now, setNow] = useState(null);
+
+  useEffect(() => {
+    startTransition(() => setNow(new Date()));
+  }, []);
+
+  if (!now) return null;
+
   const { label, icon } = getTimeOfDay(now.getHours());
   const formattedDate = getFormattedDate(now);
 
@@ -66,8 +80,8 @@ export default function HomeScreen({ residentName, onStart }) {
 
   return (
     <div className="home-screen">
-      <div className="home-top">
-        <img src={icon} alt="" className="home-icon" />
+      <header className="home-top">
+        <Image src={icon} alt="" className="home-icon" width={56} height={56} />
 
         <div className="home-greeting-block">
           <button
@@ -75,14 +89,20 @@ export default function HomeScreen({ residentName, onStart }) {
             onClick={handleSpeak}
             aria-label="Read greeting aloud"
           >
-            <img src={homespeaker} alt="" className="home-speaker-icon" />
+            <Image
+              src={homespeaker}
+              alt=""
+              className="home-speaker-icon"
+              width={28}
+              height={28}
+            />
             <span className="home-greeting-label">{label}</span>
           </button>
 
           <h1 className="home-name">{residentName}</h1>
           <p className="home-date">{formattedDate}</p>
         </div>
-      </div>
+      </header>
 
       <div className="home-bottom">
         <button className="home-start-btn" onClick={onStart}>

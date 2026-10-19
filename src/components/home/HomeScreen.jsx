@@ -24,9 +24,6 @@ function getTimeOfDay(hour) {
   if (hour >= 5 && hour < 12) {
     return { label: "Good morning", icon: sun };
   }
-  if (hour >= 12 && hour < 17) {
-    return { label: "Good afternoon", icon: sun };
-  }
   return { label: "Good evening", icon: moon };
 }
 

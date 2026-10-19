@@ -1,34 +1,43 @@
 import React, { startTransition, useEffect, useState } from "react";
-import { getResident } from "../lib/residentSession";
+import { getResidentId, getResidentName } from "../lib/resident";
+import CheckinController from "./components/checkin/CheckinController";
 import HomeScreen from "./components/home/HomeScreen";
-import QuestionScreen from "./components/qna/Questionscreen";
+import PairingScreen from "./components/pairing/PairingScreen";
 import "./App.css";
 
 export default function App() {
+  const [residentId, setResidentId] = useState(null);
+  const [residentName, setResidentName] = useState("");
   const [started, setStarted] = useState(false);
-  const [residentName, setResidentName] = useState("Kamla Rao");
-  const [questionNumber, setQuestionNumber] = useState(1);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const resident = getResident();
-    if (resident?.name) {
-      startTransition(() => setResidentName(resident.name));
-    }
+    startTransition(() => {
+      setResidentId(getResidentId());
+      setResidentName(getResidentName() || "");
+      setReady(true);
+    });
   }, []);
 
   const handleStart = () => {
-    setQuestionNumber(1);
     setStarted(true);
   };
 
   return (
     <div className="app-root">
-      {!started ? (
+      {!ready ? null : !residentId ? (
+        <PairingScreen
+          onPaired={(id, name) => {
+            setResidentId(id);
+            setResidentName(name);
+          }}
+        />
+      ) : !started ? (
         <HomeScreen residentName={residentName} onStart={handleStart} />
       ) : (
-        <QuestionScreen
-          question={`Q. ${questionNumber}`}
-          onNext={() => setQuestionNumber((current) => current + 1)}
+        <CheckinController
+          residentId={residentId}
+          residentName={residentName}
         />
       )}
     </div>

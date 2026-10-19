@@ -79,6 +79,7 @@
   color: var(--color-text-on-primary);
   margin: 0 0 6px 0;
   line-height: 1.15;
+  text-transform: uppercase;
 }
 
 .home-date {

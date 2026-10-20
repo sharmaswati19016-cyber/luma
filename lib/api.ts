@@ -30,13 +30,19 @@ export type WordSet = { id: number; word_1: string; word_2: string; word_3: stri
 export type FluencyCategory = { id: number; category: string };
 
 export type ResidentListRow = {
-  id: string;
+  resident_id: string;
   name: string;
   age: number | null;
   pairing_code: string | null;
+  status: string;
+  status_label: string;
+  reason_summary: string | null;
+  last_checkin_date: string | null;
+  is_off_today: boolean;
 };
 
 export type BulkResidentResult = {
+  resident_id: string;
   name: string;
   age: number | null;
   pairing_code: string;
@@ -102,6 +108,26 @@ export async function getMyFacilityId(): Promise<string> {
   return data.facility_id;
 }
 
+export async function getMyStaffName(): Promise<string> {
+  const { data, error } = await supabase
+    .from("staff")
+    .select("name")
+    .single();
+  if (error) throw new Error(error.message);
+  return data.name;
+}
+
+export async function getMyFacilityName(): Promise<string> {
+  const facilityId = await getMyFacilityId();
+  const { data, error } = await supabase
+    .from("facilities")
+    .select("name")
+    .eq("id", facilityId)
+    .single();
+  if (error) throw new Error(error.message);
+  return data.name;
+}
+
 // ---------- Staff: dashboard ----------
 export async function getFacilitySummary() {
   const rows = await rpc<FacilitySummary[]>("get_facility_summary");
@@ -122,12 +148,31 @@ export async function getResidentHistory(residentId: string, weeks = 8) {
 // "View All Residents" needs age + pairing code, which the roster doesn't return,
 // so this reads the residents table directly (allowed by RLS for staff).
 export async function getResidentsList() {
-  const { data, error } = await supabase
-    .from("residents")
-    .select("id, name, age, pairing_code")
-    .order("name");
+  const [{ data, error }, roster] = await Promise.all([
+    supabase
+      .from("residents")
+      .select("id, name, age, pairing_code")
+      .order("name"),
+    getFacilityRoster(),
+  ]);
   if (error) throw new Error(error.message);
-  return data as ResidentListRow[];
+  return data.map((resident) => {
+    const status = roster.find((row) => row.resident_id === resident.id);
+    if (!status) {
+      throw new Error(`Status information is unavailable for ${resident.name}.`);
+    }
+    return {
+      resident_id: resident.id,
+      name: resident.name,
+      age: resident.age,
+      pairing_code: resident.pairing_code,
+      status: status.status,
+      status_label: status.status_label,
+      reason_summary: status.reason_summary,
+      last_checkin_date: status.last_checkin_date,
+      is_off_today: status.is_off_today,
+    } satisfies ResidentListRow;
+  });
 }
 
 // ---------- Staff: managing residents ----------

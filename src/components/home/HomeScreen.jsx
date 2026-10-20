@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import Logo from "../shared/Logo";
 import { startTransition, useState, useEffect } from "react";
+import { getGreeting } from "../../../lib/greeting";
 import "./Home.css";
 
 // Images live in public/assets/ and are served from /assets/...
@@ -20,35 +22,7 @@ const homespeaker = "/assets/homespeaker.png";
  *  - onStart (function)     called when "Start Today's Check-in" is tapped
  */
 
-function getTimeOfDay(hour) {
-  if (hour >= 5 && hour < 12) {
-    return { label: "Good morning", icon: sun };
-  }
-  return { label: "Good evening", icon: moon };
-}
-
-function getOrdinal(day) {
-  if (day > 3 && day < 21) return "th";
-  switch (day % 10) {
-    case 1:
-      return "st";
-    case 2:
-      return "nd";
-    case 3:
-      return "rd";
-    default:
-      return "th";
-  }
-}
-
-function getFormattedDate(date) {
-  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
-  const day = date.getDate();
-  const month = date.toLocaleDateString("en-US", { month: "long" });
-  return `${weekday}, ${day}${getOrdinal(day)} ${month}`;
-}
-
-export default function HomeScreen({ residentName, onStart }) {
+export default function HomeScreen({ residentName, onStart, onUnpair }) {
   // The time is read in the browser only (after the page loads),
   // so the server's clock never decides the greeting.
   const [now, setNow] = useState(null);
@@ -59,8 +33,8 @@ export default function HomeScreen({ residentName, onStart }) {
 
   if (!now) return null;
 
-  const { label, icon } = getTimeOfDay(now.getHours());
-  const formattedDate = getFormattedDate(now);
+  const { label, icon: iconName, dateText: formattedDate } = getGreeting(now);
+  const icon = iconName === "sun" ? sun : moon;
 
   const handleSpeak = () => {
     // Reads the greeting aloud — reuses the same speaker icon/position
@@ -104,6 +78,10 @@ export default function HomeScreen({ residentName, onStart }) {
       <div className="home-bottom">
         <button className="home-start-btn" onClick={onStart}>
           Start Today&apos;s Check-in
+        </button>
+        <Logo variant="mark" className="resident-mark" />
+        <button className="home-unpair-btn" onClick={onUnpair}>
+          This isn&apos;t my device
         </button>
       </div>
     </div>

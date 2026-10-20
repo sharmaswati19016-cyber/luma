@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useState } from "react";
-import { staffLogout } from "../../../lib/api";
+import { createContext, useContext, useEffect, useState } from "react";
+import { getMyStaffName, staffLogout } from "../../../lib/api";
+import Logo from "../../../src/components/shared/Logo";
+import dashboardIcon from "../../../src/public/assets/dashboard.png";
+import residentIcon from "../../../src/public/assets/resident.png";
+import progressIcon from "../../../src/public/assets/progress.png";
 
 const StaffContext = createContext(null);
 
@@ -15,15 +20,30 @@ export default function StaffShell({ session, children }) {
   const pathname = usePathname();
   const router = useRouter();
   const [error, setError] = useState("");
-  const staffName =
+  const [profileName, setProfileName] = useState("");
+  const staffName = profileName ||
     session.user.user_metadata?.full_name ||
     session.user.email?.split("@")[0] ||
     "Staff";
   const navigation = [
-    { label: "Dashboard", href: "/staff/dashboard" },
-    { label: "All Residents", href: "/staff/residents" },
-    { label: "Progress", href: "/staff/progress" },
+    { label: "Dashboard", href: "/staff/dashboard", icon: dashboardIcon },
+    { label: "All Residents", href: "/staff/residents", icon: residentIcon },
+    { label: "Progress", href: "/staff/progress", icon: progressIcon },
   ];
+
+  useEffect(() => {
+    let active = true;
+    getMyStaffName()
+      .then((name) => {
+        if (active) setProfileName(name);
+      })
+      .catch((cause) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Staff profile could not load.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleLogout() {
     setError("");
@@ -46,6 +66,7 @@ export default function StaffShell({ session, children }) {
             <strong>{staffName}</strong>
             <span>{session.user.email}</span>
           </div>
+          <Logo variant="mark" className="staff-mobile-logo" />
           <nav aria-label="Staff navigation">
             {navigation.map((item) => (
               <Link
@@ -58,6 +79,7 @@ export default function StaffShell({ session, children }) {
                     : ""
                 }
               >
+                <Image src={item.icon} alt="" width={20} height={20} />
                 {item.label}
               </Link>
             ))}
@@ -65,6 +87,9 @@ export default function StaffShell({ session, children }) {
           <button className="staff-logout" onClick={handleLogout}>Log out</button>
         </aside>
         <main className="staff-main">
+          <div className="staff-main-brand">
+            <Logo variant="mark" />
+          </div>
           {error && <p className="staff-error" role="alert">{error}</p>}
           {children}
         </main>

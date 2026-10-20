@@ -1,0 +1,112 @@
+.entry-page {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f0e8da;
+  color: #2b2a28;
+  font-family: Arial, sans-serif;
+}
+
+.entry-card {
+  width: 100%;
+  max-width: 460px;
+  min-height: min(760px, calc(100svh - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  border-radius: 28px;
+  background: #fbf7f0;
+  box-shadow: 0 12px 34px rgba(43, 42, 40, 0.13);
+  text-align: center;
+}
+
+.landing-logo {
+  width: min(82%, 360px);
+  height: auto;
+}
+
+.landing-tagline {
+  margin: 28px 0 42px;
+  color: #512e1c;
+  font-family: Georgia, serif;
+  font-size: clamp(24px, 5vw, 32px);
+}
+
+.role-logo {
+  width: 112px;
+  height: auto;
+  margin-bottom: 34px;
+}
+
+.role-card h1 {
+  margin: 0;
+  color: #512e1c;
+  font-family: Georgia, serif;
+  font-size: 34px;
+}
+
+.role-card > p {
+  margin: 12px 0 32px;
+  font-size: 17px;
+}
+
+.role-actions {
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+
+.entry-primary,
+.entry-secondary {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.entry-primary {
+  background: #a0522d;
+  color: #fbf7f0;
+}
+
+.entry-secondary {
+  border: 1px solid #a0522d;
+  background: #fffdf9;
+  color: #713c23;
+}
+
+.entry-back {
+  margin-top: 26px;
+  color: #713c23;
+  font-weight: 700;
+}
+
+.entry-primary:focus-visible,
+.entry-secondary:focus-visible,
+.entry-back:focus-visible {
+  outline: 3px solid #2b2a28;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .entry-page {
+    padding: 0;
+  }
+
+  .entry-card {
+    min-height: 100svh;
+    max-width: none;
+    border-radius: 0;
+    padding: 32px 26px;
+    box-shadow: none;
+  }
+}

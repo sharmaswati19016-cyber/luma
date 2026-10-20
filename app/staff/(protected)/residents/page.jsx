@@ -92,10 +92,11 @@ export default function ResidentsPage() {
       const age = Number(residentAge);
       if (!Number.isInteger(age) || age < 1) throw new Error("Enter a valid age.");
       const created = await addResidentsBulk([{ name: residentName.trim(), age }]);
+      if (!created.length) throw new Error("The resident was not added; no pairing code was returned.");
       setPairingCodes((current) => ({ ...current, [created[0].resident_id]: created[0].pairing_code }));
       setResidentName("");
       setResidentAge("");
-      setNotice("Resident added. Age is not stored by the current backend schema.");
+      setNotice(`Resident added. Pairing code: ${created[0].pairing_code}`);
       await refreshResidents();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Resident could not be added.");
@@ -113,11 +114,12 @@ export default function ResidentsPage() {
     try {
       const entries = parseResidentsCsv(await file.text());
       const created = await addResidentsBulk(entries);
+      if (!created.length) throw new Error("No residents were added; no pairing codes were returned.");
       setPairingCodes((current) => ({
         ...current,
         ...Object.fromEntries(created.map((resident) => [resident.resident_id, resident.pairing_code])),
       }));
-      setNotice(`${created.length} resident${created.length === 1 ? "" : "s"} added. Age is not stored by the current backend schema.`);
+      setNotice(`${created.length} resident${created.length === 1 ? "" : "s"} added. Pairing codes are shown in the roster.`);
       await refreshResidents();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The sheet could not be uploaded.");
@@ -153,7 +155,10 @@ export default function ResidentsPage() {
       setNotice(`${resident.name} was deleted.`);
       await refreshResidents();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Resident could not be deleted.");
+      const message = cause instanceof Error ? cause.message : "Resident could not be deleted.";
+      setError(/admin|not authorized|permission/i.test(message)
+        ? "Only a facility admin can delete residents. Ask your facility administrator."
+        : message);
     }
   }
 
@@ -166,7 +171,7 @@ export default function ResidentsPage() {
       </header>
       {error && <p className="staff-error" role="alert">{error}</p>}
       {notice && <p className="staff-notice" role="status">{notice}</p>}
-      <section className="staff-panel resident-add-panel">
+      <section className="staff-panel resident-add-panel" id="add-resident">
         <div className="staff-card-heading">
           <div><p className="staff-eyebrow">NEW RESIDENT</p><h2>Add Resident</h2></div>
         </div>
@@ -188,16 +193,10 @@ export default function ResidentsPage() {
           </label>
           <button className="staff-button" disabled={busy}>Add Resident</button>
         </form>
-        <p className="staff-help">
-          The current database stores resident names only; age is collected here but is not saved.
-        </p>
-        <label className="sheet-upload">
+        <label className="sheet-upload" id="upload-sheet">
           Upload a CSV sheet (columns: name, age)
           <input type="file" accept=".csv,text/csv" onChange={uploadSheet} disabled={busy} />
         </label>
-        <p className="staff-help">
-          Bulk upload calls the existing create-resident RPC for each row. If a request fails partway through, some residents may already have been added.
-        </p>
       </section>
       <section className="staff-panel resident-table-panel">
         <div className="staff-card-heading">
@@ -205,12 +204,12 @@ export default function ResidentsPage() {
           <span className="staff-total">{residents.length} total</span>
         </div>
         <div className="resident-list">
-          {residents.map((resident) => (
+          {residents.map((resident, index) => (
             <article className="resident-row" key={resident.resident_id}>
               <span className={`resident-dot ${statusDotClass(resident.status_label)}`} aria-hidden="true" />
               <div className="resident-row-main">
                 <Link href={`/staff/progress/${resident.resident_id}`} className="resident-name">
-                  {resident.name}
+                  {index + 1}. {resident.name}, Age: {resident.age ?? "—"}
                 </Link>
                 <span className="resident-status">{resident.status_label}</span>
               </div>

@@ -3,33 +3,30 @@
   min-height: 100svh;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: #efe7d8;
+  padding: 30px;
+  background: #f0e8da;
   color: #2b2a28;
   font-family: "Inter", -apple-system, sans-serif;
 }
 
 .pairing-card {
   width: 100%;
-  max-width: 390px;
-  padding: 32px;
+  max-width: 450px;
+  min-height: min(820px, calc(100svh - 60px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 44px;
   border-radius: 28px;
   background: #fbf7f0;
   box-shadow: 0 10px 28px rgba(43, 42, 40, 0.12);
 }
 
-.pairing-sun {
-  color: #a0522d;
-  font-size: 44px;
-  line-height: 1;
-}
-
-.pairing-eyebrow {
-  margin: 20px 0 8px;
-  color: #a0522d;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+.pairing-logo {
+  width: 108px;
+  height: auto;
+  align-self: center;
+  margin-bottom: 34px;
 }
 
 .pairing-card h1 {
@@ -67,6 +64,21 @@
   font-size: 20px;
 }
 
+.pairing-digits {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pairing-card .pairing-digits input {
+  min-width: 0;
+  min-height: 58px;
+  padding: 6px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+}
+
 .pairing-card input:focus-visible {
   outline: 3px solid #a0522d;
   outline-offset: 2px;
@@ -100,4 +112,25 @@
   color: #5e554b;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.pairing-back {
+  align-self: center;
+  margin-top: 22px;
+  color: #713c23;
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .pairing-screen {
+    padding: 0;
+  }
+
+  .pairing-card {
+    max-width: none;
+    min-height: 100svh;
+    padding: 32px 24px;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }

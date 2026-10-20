@@ -9,8 +9,9 @@
 
 .home-screen {
   width: 100%;
-  max-width: 360px;
+  max-width: 450px;
   min-height: 100vh;
+  min-height: 100svh;
   margin: 0 auto;
   background: var(--color-background);
   display: flex;
@@ -94,8 +95,9 @@
 .home-bottom {
   flex: 1;
   display: flex;
-  justify-content: center;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
   padding: 28px 24px 36px;
 }
 
@@ -112,6 +114,24 @@
   min-height: 64px;
 }
 
+.resident-mark {
+  width: 72px;
+  height: auto;
+  margin-top: 24px;
+}
+
+.home-unpair-btn {
+  margin-top: 12px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: #713c23;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .home-start-btn:active {
   opacity: 0.85;
 }
@@ -119,4 +139,13 @@
 .home-start-btn:focus-visible {
   outline: 3px solid var(--color-ink);
   outline-offset: 3px;
+}
+
+@media (min-width: 768px) {
+  .home-screen {
+    min-height: min(900px, calc(100svh - 60px));
+    border-radius: 28px;
+    box-shadow: 0 12px 34px rgba(43, 42, 40, 0.15);
+    overflow: hidden;
+  }
 }

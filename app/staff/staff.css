@@ -19,6 +19,22 @@
   box-shadow: 0 12px 34px rgba(43, 42, 40, 0.13);
 }
 
+.staff-auth-back {
+  display: block;
+  margin-top: 16px;
+  color: #8a4627;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.staff-auth-logo {
+  display: block;
+  width: 64px;
+  height: auto;
+  margin: 24px auto 0;
+}
+
 .staff-auth-card h1 {
   margin: 4px 0 28px;
   color: #5b321f;
@@ -131,6 +147,7 @@
 }
 
 .staff-sidebar {
+  position: relative;
   min-height: 100%;
   padding: 30px 18px;
   background: #a0522d;
@@ -193,6 +210,21 @@
   cursor: pointer;
 }
 
+.staff-sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.staff-sidebar nav a img {
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.staff-mobile-logo {
+  display: none;
+}
+
 .staff-sidebar nav a.active {
   background: #fbf7f0;
   color: #713c23;
@@ -204,11 +236,25 @@
 }
 
 .staff-main {
+  min-width: 0;
+  position: relative;
   width: 100%;
   max-width: 1500px;
   margin: 0 auto;
   padding: 46px clamp(24px, 5vw, 72px);
   overflow: hidden;
+}
+
+.staff-main-brand {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 44px;
+  margin-bottom: 4px;
+}
+
+.staff-main-brand img {
+  width: 62px;
+  height: auto;
 }
 
 .staff-page-header {
@@ -230,9 +276,30 @@
 
 .dashboard-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 230px;
+  grid-template-columns: minmax(0, 1fr) 290px;
   align-items: start;
   gap: 22px;
+}
+
+.staff-facility-card {
+  margin: 0 0 22px;
+  padding: 24px 28px;
+  border: 1px solid rgba(216, 203, 176, 0.75);
+  border-radius: 20px;
+  background: #fbf7f0;
+  box-shadow: 0 5px 16px rgba(43, 42, 40, 0.07);
+}
+
+.staff-facility-card h2 {
+  margin: 0;
+  color: #512e1c;
+  font-family: Georgia, serif;
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.dashboard-aside {
+  display: grid;
+  gap: 18px;
 }
 
 .flagged-card,
@@ -321,12 +388,13 @@
 
 .summary-cards {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
 .summary-card {
-  min-height: 120px;
-  padding: 18px 20px;
+  min-height: 116px;
+  padding: 16px;
 }
 
 .summary-card p {
@@ -339,6 +407,44 @@
   color: #512e1c;
   font-family: Georgia, serif;
   font-size: 30px;
+}
+
+.dashboard-quick-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-action-card {
+  min-height: 96px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(216, 203, 176, 0.75);
+  border-radius: 18px;
+  background: #fbf7f0;
+  box-shadow: 0 5px 16px rgba(43, 42, 40, 0.07);
+  color: #512e1c;
+  text-decoration: none;
+}
+
+.dashboard-action-card > span {
+  grid-row: span 2;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #a0522d;
+  color: #fbf7f0;
+  font-size: 27px;
+  font-weight: 400;
+}
+
+.dashboard-action-card small {
+  color: #675d53;
+  line-height: 1.35;
 }
 
 .resident-dot {
@@ -585,7 +691,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 767px) {
   .staff-app {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -595,12 +701,26 @@
     padding: 14px;
   }
 
+  .staff-mobile-logo {
+    position: absolute;
+    top: 18px;
+    right: 16px;
+    display: block;
+    width: 48px;
+    height: auto;
+  }
+
+  .staff-main-brand {
+    display: none;
+  }
+
   .staff-profile {
     display: grid;
     grid-template-columns: 42px minmax(0, 1fr);
     align-items: center;
     column-gap: 12px;
     padding: 0 4px 14px;
+    padding-right: 60px;
   }
 
   .staff-avatar {
@@ -624,6 +744,11 @@
     padding: 12px 8px;
     font-size: 12px;
     text-align: center;
+  }
+
+  .staff-sidebar nav a img {
+    width: 18px;
+    height: 18px;
   }
 
   .staff-logout {
@@ -667,6 +792,10 @@
 
   .summary-cards {
     grid-template-columns: 1fr;
+  }
+
+  .staff-facility-card {
+    padding: 20px;
   }
 
   .off-day-panel {

@@ -1,7 +1,5 @@
-"use client";
-
-import App from "../src/App";
+import LandingScreen from "../src/components/shared/LandingScreen";
 
 export default function Home() {
-  return <App />;
+  return <LandingScreen />;
 }

@@ -7,7 +7,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #1a1a1a; /* neutral surround behind the phone-width app */
+  background: #f0e8da;
   font-family: "Inter", -apple-system, sans-serif;
 }
 
@@ -20,7 +20,8 @@ html, body {
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: stretch;
+  background: #f0e8da;
 }
 
 /* Temporary placeholder shown after "Start" is tapped,
@@ -37,4 +38,12 @@ html, body {
   padding: 24px;
   color: #2B2A28;
   font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  .app-root {
+    min-height: 100svh;
+    align-items: center;
+    padding: 30px;
+  }
 }

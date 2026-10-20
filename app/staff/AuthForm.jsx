@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { staffLogin, staffSignUp } from "../../lib/api";
+import Logo from "../../src/components/shared/Logo";
 
 export default function AuthForm({ mode }) {
   const router = useRouter();
@@ -99,6 +100,8 @@ export default function AuthForm({ mode }) {
             {isSignup ? "Log in" : "Sign up"}
           </Link>
         </p>
+        <Link className="staff-auth-back" href="/role">← Back</Link>
+        <Logo variant="mark" className="staff-auth-logo" />
       </section>
     </main>
   );

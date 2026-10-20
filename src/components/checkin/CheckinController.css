@@ -1,6 +1,6 @@
 .checkin-screen {
   width: 100%;
-  max-width: 430px;
+  max-width: 450px;
   min-height: 100vh;
   min-height: 100svh;
   margin: 0 auto;
@@ -19,6 +19,18 @@
   color: #6c3b25;
   font-size: 14px;
   font-weight: 700;
+}
+
+.checkin-speaker {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  margin: 2px auto 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #e6dbce;
+  cursor: pointer;
 }
 
 .checkin-progress {
@@ -234,6 +246,13 @@
   line-height: 1.5;
 }
 
+.checkin-logo {
+  width: 68px;
+  height: auto;
+  align-self: center;
+  margin: 20px 0 0;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -242,4 +261,16 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   clip-path: inset(50%);
+}
+
+@media (min-width: 768px) {
+  .checkin-screen {
+    min-height: min(900px, calc(100svh - 60px));
+    border-radius: 28px;
+    box-shadow: 0 12px 34px rgba(43, 42, 40, 0.15);
+  }
+
+  .checkin-card h1 {
+    font-size: clamp(30px, 3vw, 40px);
+  }
 }

@@ -1,5 +1,8 @@
+"use client";
+
 import React, { startTransition, useEffect, useState } from "react";
-import { getResidentId, getResidentName } from "../lib/resident";
+import { clearResidentId, getResidentId } from "../lib/resident";
+import { getResident } from "../lib/residentSession";
 import CheckinController from "./components/checkin/CheckinController";
 import HomeScreen from "./components/home/HomeScreen";
 import PairingScreen from "./components/pairing/PairingScreen";
@@ -14,13 +17,20 @@ export default function App() {
   useEffect(() => {
     startTransition(() => {
       setResidentId(getResidentId());
-      setResidentName(getResidentName() || "");
+      setResidentName(getResident()?.name || "");
       setReady(true);
     });
   }, []);
 
   const handleStart = () => {
     setStarted(true);
+  };
+
+  const handleUnpair = () => {
+    clearResidentId();
+    setResidentId(null);
+    setResidentName("");
+    setStarted(false);
   };
 
   return (
@@ -33,7 +43,11 @@ export default function App() {
           }}
         />
       ) : !started ? (
-        <HomeScreen residentName={residentName} onStart={handleStart} />
+        <HomeScreen
+          residentName={residentName}
+          onStart={handleStart}
+          onUnpair={handleUnpair}
+        />
       ) : (
         <CheckinController
           residentId={residentId}

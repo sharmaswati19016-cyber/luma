@@ -1,19 +1,186 @@
-<<<<<<< HEAD
-# Cognitive Check-In — Backend
+# Luma
 
-Supabase (Postgres) backend for the cognitive check-in platform. No separate
-server — the frontend talks to Supabase directly using the anon key, and all
-business logic (auth checks, scoring rules, the trend engine) lives in
-Postgres functions (RPCs), enforced by row-level security.
+**care that notices early**
 
-## Setup (fresh Supabase project)
+Luma is a daily 2-minute cognitive check-in for elder-care facilities. It is **speak-and-tap only** (no reading, typing or accounts for residents), and it tracks every resident against **their own personal baseline** so staff can notice sustained change early, before it becomes a crisis.
+
+Built for the UnivaBio hackathon, theme: *Artificial Intelligence for Human Health*.
+
+> **Luma is a screening and awareness aid, not a diagnostic tool.** It flags a pattern that may be worth a doctor's attention. It does not determine the cause: infections, new medicines, hearing loss, poor sleep and low mood can all look the same. It is not yet clinically validated.
+
+---
+
+## Table of contents
+
+1. [The problem](#the-problem)
+2. [How it works](#how-it-works)
+3. [Features](#features)
+4. [Tech stack](#tech-stack)
+5. [Architecture](#architecture)
+6. [Project structure](#project-structure)
+7. [Getting started](#getting-started)
+8. [Demo data and trying it out](#demo-data-and-trying-it-out)
+9. [Deployment (Vercel)](#deployment-vercel)
+10. [Database reference](#database-reference)
+11. [Design decisions and known limitations](#design-decisions-and-known-limitations)
+12. [Roadmap](#roadmap)
+13. [Branches](#branches)
+
+---
+
+## The problem
+
+Early cognitive decline (mild cognitive impairment, early dementia) is subtle. In a care home, staff look after many residents at once, and one bad day (poor sleep, distraction) looks the same as the start of real decline. Meaningful change often goes unnoticed for months.
+
+Many residents also have low literacy or limited comfort with technology, which rules out any app built on reading or typing.
+
+## How it works
+
+1. **Staff** create an account, add residents by name, and give each resident a **6-digit pairing code**.
+2. A **resident** enters the code once on a tablet. The tablet remembers them. There are no passwords.
+3. Each day the resident does a **2-minute check-in**. The result is saved to Supabase.
+4. A **trend engine** (Postgres functions, run weekly) compares each week against the resident's own baseline.
+5. **Staff** see who is *Steady*, *Worth watching*, or *Worth a check-up conversation*, with a plain-English reason.
+
+Residents never see a score. They see a calm, non-clinical message at the end.
+
+---
+
+## Features
+
+### Resident check-in (tablet, no login)
+
+| Step | What the resident does | What it measures |
+|---|---|---|
+| Learning | Hears 3 words spoken aloud (and sees them briefly) | Sets up the recall tasks |
+| Orientation | Taps today's day from 4 options | Orientation (also acts as a distractor) |
+| Category fluency | Names as many items as they can from the day's category in 30 seconds | Processing speed and word retrieval |
+| Free recall | Says the 3 words from the start | Free recall (the main memory signal) |
+| Picture recognition | Taps the 3 words among 6 picture icons, with no text labels | Recognition (stored as a secondary score) |
+
+- **Retry / Yes / Fix it:** after each spoken task the screen shows what the app heard. The resident can tap **Retry**, **Fix it** (correct the text) or **Yes**. A misheard word is visible and correctable instead of silently corrupting the score.
+- **Live speech-to-text** with Deepgram (`nova-3`), so words appear on screen while the resident speaks.
+- **Rotating category:** animals are the main tracked category. Other categories appear occasionally for variety; they are stored but kept out of the baseline and trend, so a "hard category day" never looks like decline.
+- **Word pool:** 30 pre-validated word sets that rotate per resident per day, so difficulty does not drift and repeats are rare.
+- **Look-alike protection:** icon words that look alike (for example mop and broom) never appear in the same set.
+- **One check-in per day:** a second attempt shows a gentle "You've already done today's check-in" message with a **Back home** button.
+- **Morning/evening greeting** on the home screen.
+
+### Staff dashboard (login required)
+
+| Page | Route | What it does |
+|---|---|---|
+| Dashboard | `/staff/dashboard` | Facility summary (for example "3 residents flagged this week") |
+| All Residents | `/staff/residents` | Add a resident by name, see status and pairing code, **Regenerate code**, **Delete** |
+| Progress | `/staff/progress` | Plain-English reason for each resident |
+| Resident detail | `/staff/progress/[residentId]` | Three weekly trend charts (free recall, fluency words, response time) and a **Mark off day** button |
+
+Staff only see residents of their own facility (enforced by row-level security).
+
+### Trend engine
+
+- **Baseline:** built from each resident's first 2 weeks. Two practice days at the start are recorded but excluded.
+- **Weekly comparison:** each week is compared with that baseline using z-scores.
+- **Flag rule:** a flag needs **two or more metrics declining together for 3+ consecutive weeks**. A single bad day or a single off metric never triggers anything.
+- **Response time** uses the weekly median and carries less weight. A flag needs a drop in recall or fluency, not just slower tapping.
+- **"Gone quiet" rule:** a separate condition for missed check-ins.
+- **Off days:** staff can mark a day (unwell, new medicine, slept badly, and so on). Marked days are excluded from the baseline and trend.
+- **Statuses:** *Steady*, *Worth watching*, *Worth a check-up conversation*. Raw scores are never shown to non-clinical staff.
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 16 (App Router), React 19, TypeScript and JavaScript, Tailwind CSS 4 |
+| Backend / database / auth | Supabase (Postgres, Supabase Auth, row-level security, RPC functions) |
+| Scheduling | `pg_cron` (weekly trend engine run) |
+| Speech-to-text | Deepgram streaming API (`nova-3`) over WebSocket |
+| Text-to-speech | Browser `speechSynthesis` (no install needed) |
+| Hosting | Vercel |
+
+Dependencies are kept small: `next`, `react`, `react-dom` and `@supabase/supabase-js`. Deepgram is called with the browser's native `WebSocket` and `MediaRecorder`, so there is no Deepgram SDK.
+
+---
+
+## Architecture
+
+There is no separate backend server. The browser talks to Supabase directly with the public anon key. All business logic (validation, scoring rules, the trend engine) lives in **Postgres functions (RPCs)** protected by **row-level security**.
+
+```
+Resident tablet ──► Next.js app ──► Supabase RPCs (security definer) ──► Postgres
+                        │                                                  ▲
+                        │ /api/deepgram-token (server only)                │
+                        ▼                                                  │
+                    Deepgram  (browser streams audio, 60-second token)     │
+                                                                           │
+Staff browser  ──► Next.js app ──► Supabase Auth + RLS-protected reads ────┘
+                                              ▲
+                                  pg_cron ──► run_trend_engine() weekly
+```
+
+Key points:
+
+- **Staff** have real logins (Supabase Auth). **Residents do not.** A resident's identity is stored in the tablet's local storage, set once via a pairing code.
+- Every write a resident's tablet can trigger goes through a `security definer` function (not a raw table insert), because an unauthenticated resident has no `auth.uid()` to build RLS around. The function does the safety checks itself.
+- The dashboard read functions (`get_facility_roster` and similar) deliberately run as the **calling staff user**, so RLS filters results to that staff member's own facility automatically.
+- **The Deepgram API key never reaches the browser.** The route `app/api/deepgram-token/route.ts` asks Deepgram for a token that expires after 60 seconds and returns only that.
+- `submit_checkin` expects the fluency count **after** the resident has confirmed the transcribed words. Raw speech-to-text output is never scored directly.
+
+---
+
+## Project structure
+
+```
+app/
+  page.tsx                         Landing screen
+  role/                            Choose resident or staff
+  resident/                        Resident tablet app (pairing, home, check-in)
+  staff/
+    login/, signup/                Staff authentication
+    (protected)/                   Staff pages behind login
+      dashboard/, residents/, progress/, progress/[residentId]/
+  api/deepgram-token/route.ts      Server route that issues short-lived Deepgram tokens
+src/components/
+  checkin/                         CheckinController and the question text
+  pairing/, home/, shared/         Pairing screen, home screen, landing and role screens
+hooks/
+  useDeepgramSTT.ts                Streaming speech-to-text hook
+lib/
+  api.ts                           Typed wrappers around every Supabase RPC
+  supabase.ts                      Supabase client (reads env vars)
+  resident.ts                      Resident id/name in local storage
+  wordIcons.ts                     Icon word list, look-alike rules, picture options, free-recall scoring
+  greeting.js                      Morning/evening greeting
+public/icons/                      90 word icons (one PNG per word)
+public/assets/                     Logos and illustrations
+supabase/migrations/               Numbered SQL migrations (run in order)
+```
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20 or newer and npm
+- A free [Supabase](https://supabase.com) project
+- A [Deepgram](https://deepgram.com) account and API key
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/sharmaswati19016-cyber/cognitive-checkin.git
+cd cognitive-checkin
+npm install
+```
+
+### 2. Set up Supabase
 
 1. Create a project at supabase.com.
-2. In the SQL Editor, run every file in `supabase/migrations/` **in order**
-   (the numeric prefix is the order — 000001 first, 000012 last). Each one
-   depends on the ones before it.
-3. Enable the `pg_cron` extension: **Database → Extensions → pg_cron**.
-4. Schedule the weekly trend engine run:
+2. Open the **SQL Editor** and run every file in `supabase/migrations/` **in numeric order**. Each one depends on the ones before it.
+3. Turn on the `pg_cron` extension (**Database → Extensions → pg_cron**), then schedule the weekly trend run:
    ```sql
    select cron.schedule(
      'weekly-trend-engine',
@@ -21,94 +188,137 @@ Postgres functions (RPCs), enforced by row-level security.
      $$select run_trend_engine();$$
    );
    ```
-5. Copy `.env.example` to `.env.local` in the frontend project and fill in
-   your project's URL + anon key from **Project Settings → API**.
-6. (Optional, for testing) Run `000012_seed_demo_data.sql` again anytime to
-   reset 5 demo residents with known Flag/Watch/Steady outcomes.
+4. Turn **off** "Confirm email" (**Authentication → Providers → Email**). Staff sign-up expects a session right away, and shows an error if email confirmation is still on.
 
-## What's in each migration
+### 3. Create a Deepgram key
 
-| File | What it adds |
-|---|---|
-| `000001_foundation_schema.sql` | Core tables: facilities, staff, residents, checkins, trend_flags + RLS |
-| `000002_auth_functions.sql` | Facility code validation, staff signup linking |
-| `000003_content_pool.sql` | Word-recall sets + fluency categories (initial 10 + 6) |
-| `000004_expand_word_pool_per_resident.sql` | Expands to 30 word sets; per-resident daily rotation |
-| `000005_checkin_pipeline.sql` | `submit_checkin` — validates and stores one day's results |
-| `000006_delete_resident.sql` | Admin-only resident deletion (cascades to their history) |
-| `000007_pairing_codes.sql` | Staff pre-creates residents; device pairs via 6-digit code |
-| `000008_remove_register_resident.sql` | Removes the old typed-name onboarding path (superseded by pairing codes) |
-| `000009_trend_engine.sql` | Baseline calculation + weekly sustained-decline detection |
-| `000010_dashboard_endpoints.sql` | `get_facility_roster`, `get_facility_summary`, `get_resident_weekly_history` |
-| `000011_fix_compute_and_flag_resident.sql` | Hotfix: rewrites the trend engine's metric-list logic using `array_append()` instead of `\|\|`, which was failing with a "malformed array literal" error |
-| `000012_seed_demo_data.sql` | Seeds 5 demo residents (56 days of backdated history each) so the trend engine produces real Flag/Watch/Steady results without waiting 5+ real weeks |
+In the Deepgram console, create an API key that is allowed to create temporary tokens (the `keys:write` scope). A key without that permission makes `/api/deepgram-token` fail with "Insufficient permissions".
 
-## Functions the frontend calls, grouped by screen
+### 4. Add environment variables
 
-- **Staff signup**: `validate_facility_code`, `create_staff_profile`
-- **Add resident (staff dashboard)**: `create_resident_by_staff` → shows the returned pairing code
-- **Resident onboarding (device)**: `pair_device` → save the returned `resident_id` to local storage
-- **Daily check-in setup**: `get_daily_word_set_for_resident`, `get_daily_fluency_category_for_resident`
-- **Daily check-in submit**: `submit_checkin`
-- **Staff roster/dashboard**: `get_facility_roster`, `get_facility_summary`, `get_resident_weekly_history`
-- **Admin**: `delete_resident`
+Copy `.env.example` to `.env.local` and fill it in:
 
-## Architecture notes for whoever reads this next
+```bash
+NEXT_PUBLIC_SUPABASE_URL=       # Project Settings → API → Project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=  # Project Settings → API → anon public key
+DEEPGRAM_API_KEY=               # Deepgram console (server-side only)
+```
 
-- **Staff** have real logins (Supabase Auth). **Residents do not** — a
-  resident's identity lives in their device's local storage, established once
-  via a pairing code, never a password.
-- Every write that a resident's device can trigger goes through a
-  `security definer` Postgres function (not a raw table insert), because
-  there's no `auth.uid()` to build RLS policies around for an unauthenticated
-  resident. The function itself does the safety checking instead.
-- The dashboard read functions (`get_facility_roster` etc.) are the opposite —
-  they deliberately run as the *calling* user (no `security definer`), so the
-  existing row-level security policies filter results to that staff member's
-  own facility automatically.
-- `submit_checkin`'s `p_fluency_count` expects the count **after** the
-  resident/staff has confirmed the transcribed words on-screen — the raw
-  speech-to-text output should never be passed straight through.
+`.env*` files are in `.gitignore`. Never commit real keys, and never put `DEEPGRAM_API_KEY` in a `NEXT_PUBLIC_` variable.
 
-## Still to build
-
-- Step 8: hardening pass (error handling review, response-shape sign-off with frontend)
-- Step 9: final run-through before submission
-=======
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
+### 5. Run it
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Restart the dev server after changing `.env.local`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Other scripts: `npm run build`, `npm run start`, `npm run lint`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+> **Microphone note:** browsers only allow microphone access on `https://` pages or `localhost`. Test on a real tablet through your deployed HTTPS URL.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Demo data and trying it out
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The trend engine needs about 5 weeks of history before it can show a flag (2-week baseline plus 3 weeks of decline). To make that visible straight away, migration `20260901000012_seed_demo_data.sql` creates:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- A demo facility, **Sunrise Elder Care**, with facility code `SUNRISE01`
+- 5 demo residents with pairing codes `900001` to `900005`
+- 56 days of **seeded, backdated** check-ins per resident, engineered to give a mix of Steady, Worth watching and flagged results
 
-## Deploy on Vercel
+**This data is simulated to demonstrate the trend engine. Live use builds history organically over weeks.**
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Re-run the seed file at any time to reset the demo residents.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
->>>>>>> 3400f9fcc447143198dd5039ff093686b3f34cb0
+### Try the staff side
+
+1. Go to `/staff/signup`, create an account with facility code `SUNRISE01`, and log in.
+2. Look at **Dashboard**, **All Residents** and **Progress**. Open a resident to see the weekly charts.
+3. Add your own test resident under **All Residents** to get a new pairing code.
+
+### Try the resident side
+
+1. Open `/resident` on a tablet or phone (use a test resident's code, such as one you created yourself).
+2. Enter the 6-digit code, tap **Start Today's Check-in**, and allow the microphone.
+
+> **Use your own test resident, not the five demo residents.** Check-ins change a resident's trend results, and only one check-in is allowed per resident per day.
+
+---
+
+## Deployment (Vercel)
+
+1. Import the repository into Vercel.
+2. Add the three environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DEEPGRAM_API_KEY`) under **Project Settings → Environment Variables**.
+3. Deploy (or redeploy after adding variables). Vercel serves HTTPS, so the microphone works on tablets.
+
+---
+
+## Database reference
+
+### Tables
+
+`facilities`, `staff`, `residents`, `checkins`, `trend_flags`, plus content tables for word sets and fluency categories (with valid-word lists per category).
+
+### Functions the frontend calls (all wrapped in `lib/api.ts`)
+
+| Area | Functions |
+|---|---|
+| Staff sign-up | `validate_facility_code`, `create_staff_profile` |
+| Residents (staff) | `create_resident_by_staff`, `regenerate_pairing_code`, `delete_resident` |
+| Off days | `mark_off_day`, `unmark_off_day` |
+| Resident pairing | `pair_device`, `get_resident_name` |
+| Check-in setup | `get_daily_word_set_for_resident`, `get_daily_fluency_category_for_resident` |
+| Check-in scoring and save | `count_valid_fluency_words`, `submit_checkin` |
+| Dashboard | `get_facility_roster`, `get_facility_summary`, `get_resident_weekly_history` |
+| Trend engine | `run_trend_engine` (scheduled weekly), `compute_and_flag_resident` |
+
+### Migrations
+
+Run in numeric order. The numbering is the dependency order.
+
+| Range | What it adds |
+|---|---|
+| `000001` to `000002` | Foundation schema with row-level security; facility code validation and staff sign-up linking |
+| `000003` to `000004` | Word-recall sets and fluency categories; expansion to 30 word sets with per-resident daily rotation |
+| `000005` to `000008` | `submit_checkin`; resident deletion; pairing codes; removal of the old typed-name onboarding |
+| `000009` to `000011` | Trend engine (baseline and sustained-decline detection); dashboard endpoints; trend engine hotfix |
+| `000012` | Seed data for 5 demo residents |
+| `000013` to `000018` | Check-in schema v2 (free recall, recognition, category, practice and off-day fields), `submit_checkin` v2, trend engine v2, animals-first rotation, roster/history v2, removal of room numbers |
+| `000019` to `000020` | Look-alike fixes for word sets (so look-alike icons never share a set) |
+| `000021` | `get_resident_name` (first name only, safe for the unauthenticated tablet) |
+
+---
+
+## Design decisions and known limitations
+
+- **Personal baseline, not population average.** Each resident is compared with their own normal.
+- **Sustained, multi-metric rule.** This mirrors how real cognitive assessments work: several domains, tracked over time.
+- **Confirm-or-correct on every speech task.** Speech recognition can struggle with soft voices, accents and noisy common rooms. Showing the transcript turns a silent error into a visible, fixable one.
+- **Cannot separate causes.** A UTI, new medication, hearing loss, poor sleep or depression can lower scores temporarily. Luma flags a pattern worth a doctor's attention and does not determine why. Off-day marking reduces false alarms from known temporary causes.
+- **Practice effect.** A rotating pool of 30 word sets and several categories makes repeats rare.
+- **Needs time to show a flag.** A flag needs 2 weeks of baseline plus 3 weeks of decline, so demos use seeded history.
+- **Not clinically validated.**
+
+---
+
+## Roadmap
+
+Not built yet:
+
+- **Staff-assisted mode:** a caregiver runs the check-in verbally for residents who cannot use a device
+- **Local language support:** local-language audio prompts, speech recognition and accepted answers
+- **Family mode:** a family member linked to one relative living independently, seeing the same status and trends
+
+---
+
+## Branches
+
+| Branch | Purpose |
+|---|---|
+| `main` | Integrated, submission-ready code |
+| `backend` | Supabase migrations and database work |
+| `frontend` | Next.js app work |
+
+Please do not force-push (`git push -f`) to shared branches, and never commit `.env.local`.

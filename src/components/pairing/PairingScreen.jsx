@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { pairDevice } from "../../../lib/api";
-import { saveResidentId } from "../../../lib/resident";
-import { saveResident } from "../../../lib/residentSession";
+import { getResidentName, pairDevice } from "../../../lib/api";
+import { saveResidentId, saveResidentName } from "../../../lib/resident";
 import Logo from "../shared/Logo";
 import "./PairingScreen.css";
 
 export default function PairingScreen({ onPaired }) {
   const [digits, setDigits] = useState(Array(6).fill(""));
-  const [residentName, setResidentName] = useState("");
   const [error, setError] = useState("");
+  const [validationError, setValidationError] = useState("");
   const [saving, setSaving] = useState(false);
   const inputRefs = useRef([]);
   const pairingCode = digits.join("");
@@ -20,6 +19,7 @@ export default function PairingScreen({ onPaired }) {
     const next = [...digits];
     next[index] = value.replace(/\D/g, "").slice(-1);
     setDigits(next);
+    setValidationError("");
     if (next[index] && index < 5) inputRefs.current[index + 1]?.focus();
   }
 
@@ -28,25 +28,34 @@ export default function PairingScreen({ onPaired }) {
     if (!pasted) return;
     event.preventDefault();
     setDigits(Array.from({ length: 6 }, (_, index) => pasted[index] || ""));
+    setValidationError("");
     inputRefs.current[Math.min(pasted.length, 5)]?.focus();
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
+    if (pairingCode.length !== 6) {
+      setValidationError("Please enter all 6 digits.");
+      return;
+    }
+    setValidationError("");
     setSaving(true);
 
     try {
       const residentId = await pairDevice(pairingCode);
-      const name = residentName.trim();
       saveResidentId(residentId);
-      saveResident({ id: residentId, name });
-      onPaired(residentId, name);
+      let name = "";
+      try {
+        name = (await getResidentName(residentId)) || "";
+      } catch {
+        name = "";
+      }
+      if (name) saveResidentName(name);
+      onPaired(residentId);
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "";
-      setError(/invalid pairing code/i.test(message)
-        ? "That code didn't work. Check the six digits with your care team and try again."
-        : "We couldn't connect just now. Check the connection and try again.");
+      console.warn("Resident device pairing failed:", cause);
+      setError("That code didn't work. Please ask the staff.");
     } finally {
       setSaving(false);
     }
@@ -60,15 +69,7 @@ export default function PairingScreen({ onPaired }) {
         <p className="pairing-description">
           Ask the staff for your 6 digit pairing code.
         </p>
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="resident-name">Your name</label>
-          <input
-            id="resident-name"
-            autoComplete="name"
-            value={residentName}
-            onChange={(event) => setResidentName(event.target.value)}
-            required
-          />
+        <form onSubmit={handleSubmit} noValidate>
           <label id="pairing-code-label">Pairing code</label>
           <div className="pairing-digits" role="group" aria-labelledby="pairing-code-label" onPaste={pasteCode}>
             {digits.map((digit, index) => (
@@ -76,6 +77,8 @@ export default function PairingScreen({ onPaired }) {
                 key={index}
                 ref={(element) => { inputRefs.current[index] = element; }}
                 aria-label={`Pairing code digit ${index + 1}`}
+                aria-invalid={Boolean(validationError)}
+                aria-describedby={validationError ? "pairing-code-error" : undefined}
                 type="text"
                 inputMode="numeric"
                 autoComplete={index === 0 ? "one-time-code" : "off"}
@@ -88,12 +91,13 @@ export default function PairingScreen({ onPaired }) {
                     inputRefs.current[index - 1]?.focus();
                   }
                 }}
-                required
+                className={validationError ? "form-field-invalid" : ""}
               />
             ))}
           </div>
-          {error && <p className="pairing-error" role="alert">{error}</p>}
-          <button type="submit" disabled={saving || pairingCode.length !== 6}>
+          {validationError && <p className="form-validation-error" id="pairing-code-error" role="alert">{validationError}</p>}
+          {error && <p className="form-validation-error" role="alert">{error}</p>}
+          <button type="submit" disabled={saving}>
             {saving ? "Connecting..." : "Continue"}
           </button>
         </form>

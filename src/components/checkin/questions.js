@@ -1,7 +1,7 @@
 export const CHECKIN_QUESTIONS = {
   learning: {
-    instruction: "LISTEN AND REMEMBER",
-    prompt: "Remember these three words.",
+    instruction: "Listen carefully.",
+    prompt: "Remember these words.",
     button: "Continue",
   },
   orientation: {
@@ -18,7 +18,7 @@ export const CHECKIN_QUESTIONS = {
     title: "Is this what you said?",
     retry: "Retry",
     fix: "Fix it",
-    next: "Next →",
+    next: "Yes",
     correctionLabel: "Correct what you heard",
     cancel: "Cancel",
     save: "Save correction",
@@ -34,7 +34,7 @@ export const CHECKIN_QUESTIONS = {
     title: "Is this what you said?",
     retry: "Retry",
     fix: "Fix it",
-    next: "Next →",
+    next: "Yes",
     correctionLabel: "Correct what you heard",
     cancel: "Cancel",
     save: "Save correction",

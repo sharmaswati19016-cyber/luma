@@ -25,7 +25,7 @@ export function shuffle<T>(items: T[]): T[] {
 }
 
 // Look-alike pairs that must never share a tile set
-const LOOKALIKES: Record<string, string[]> = {
+export const LOOKALIKES: Record<string, string[]> = {
   nail: ["screw"], screw: ["nail"],
   mop: ["broom", "brush"], broom: ["mop", "brush"], brush: ["broom", "mop", "comb"], comb: ["brush"],
   banner: ["flag"], flag: ["banner"],
@@ -46,6 +46,19 @@ const LOOKALIKES: Record<string, string[]> = {
   scarf: ["ribbon"], ribbon: ["scarf"],
 };
 
+export function scoreFreeRecall(transcript: string, targetWords: string[]): number {
+  const normalizedTranscript = ` ${transcript
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()} `;
+  return targetWords.reduce((score, word) => {
+    const normalizedWord = word
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    return score + (normalizedWord && normalizedTranscript.includes(` ${normalizedWord} `) ? 1 : 0);
+  }, 0);
+}
 
 function conflicts(a: string, b: string): boolean {
   return (LOOKALIKES[a] ?? []).includes(b) || (LOOKALIKES[b] ?? []).includes(a);

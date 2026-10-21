@@ -7,7 +7,6 @@ export default function LandingScreen() {
     <main className="entry-page">
       <section className="entry-card landing-card">
         <Logo variant="full" className="landing-logo" />
-        <p className="landing-tagline">Care that notices early.</p>
         <Link className="entry-primary" href="/role">
           Let&apos;s Begin →
         </Link>

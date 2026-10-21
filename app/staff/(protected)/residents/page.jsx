@@ -1,54 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  addResidentsBulk,
+  createResident,
   deleteResident,
   getResidentsList,
   regeneratePairingCode,
 } from "../../../../lib/api";
-
-function parseCsvRow(row) {
-  const values = [];
-  let value = "";
-  let inQuotes = false;
-  for (let index = 0; index < row.length; index += 1) {
-    const character = row[index];
-    if (character === '"' && row[index + 1] === '"' && inQuotes) {
-      value += '"';
-      index += 1;
-    } else if (character === '"') {
-      inQuotes = !inQuotes;
-    } else if (character === "," && !inQuotes) {
-      values.push(value.trim());
-      value = "";
-    } else {
-      value += character;
-    }
-  }
-  values.push(value.trim());
-  return values;
-}
-
-function parseResidentsCsv(text) {
-  const rows = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter((row) => row.trim());
-  if (rows.length < 2) throw new Error("The CSV must include a header and at least one resident.");
-  const headers = parseCsvRow(rows[0]).map((header) => header.toLowerCase());
-  const nameIndex = headers.indexOf("name");
-  const ageIndex = headers.indexOf("age");
-  if (nameIndex < 0 || ageIndex < 0) {
-    throw new Error("The CSV must have name and age columns.");
-  }
-  return rows.slice(1).map((row, index) => {
-    const fields = parseCsvRow(row);
-    const age = Number(fields[ageIndex]);
-    if (!fields[nameIndex] || !Number.isInteger(age) || age < 1) {
-      throw new Error(`Row ${index + 2} needs a name and a valid age.`);
-    }
-    return { name: fields[nameIndex], age };
-  });
-}
 
 function statusDotClass(label) {
   if (label === "Worth a check-up conversation") return "flag-dot";
@@ -59,11 +18,14 @@ function statusDotClass(label) {
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
   const [residentName, setResidentName] = useState("");
-  const [residentAge, setResidentAge] = useState("");
+  const [nameError, setNameError] = useState("");
   const [pairingCodes, setPairingCodes] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
 
   async function refreshResidents() {
     setResidents(await getResidentsList());
@@ -77,60 +39,39 @@ export default function ResidentsPage() {
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Residents could not load.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAttempt]);
 
   async function addOne(event) {
     event.preventDefault();
+    if (submitting.current) return;
     setError("");
     setNotice("");
+    if (!residentName.trim()) {
+      setNameError("Please enter a name.");
+      return;
+    }
+    setNameError("");
+    submitting.current = true;
     setBusy(true);
     try {
-      const age = Number(residentAge);
-      if (!Number.isInteger(age) || age < 1) throw new Error("Enter a valid age.");
-      const created = await addResidentsBulk([{ name: residentName.trim(), age }]);
-      if (!created.length) throw new Error("The resident was not added; no pairing code was returned.");
-      setPairingCodes((current) => ({ ...current, [created[0].resident_id]: created[0].pairing_code }));
+      const created = await createResident(residentName.trim());
+      if (!created) throw new Error("The resident was not added; no pairing code was returned.");
+      setPairingCodes((current) => ({ ...current, [created.resident_id]: created.pairing_code }));
       setResidentName("");
-      setResidentAge("");
-      setNotice(`Resident added. Pairing code: ${created[0].pairing_code}`);
+      setNotice(`Resident added. Pairing code: ${created.pairing_code}`);
       await refreshResidents();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Resident could not be added.");
     } finally {
+      submitting.current = false;
       setBusy(false);
-    }
-  }
-
-  async function uploadSheet(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setError("");
-    setNotice("");
-    setBusy(true);
-    try {
-      const entries = parseResidentsCsv(await file.text());
-      const created = await addResidentsBulk(entries);
-      if (!created.length) throw new Error("No residents were added; no pairing codes were returned.");
-      setPairingCodes((current) => ({
-        ...current,
-        ...Object.fromEntries(created.map((resident) => [resident.resident_id, resident.pairing_code])),
-      }));
-      setNotice(`${created.length} resident${created.length === 1 ? "" : "s"} added. Pairing codes are shown in the roster.`);
-      await refreshResidents();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The sheet could not be uploaded.");
-      try {
-        await refreshResidents();
-      } catch (refreshError) {
-        setError(`${cause instanceof Error ? cause.message : "The sheet could not be uploaded."} ${refreshError instanceof Error ? refreshError.message : ""}`);
-      }
-    } finally {
-      setBusy(false);
-      event.target.value = "";
     }
   }
 
@@ -175,28 +116,25 @@ export default function ResidentsPage() {
         <div className="staff-card-heading">
           <div><p className="staff-eyebrow">NEW RESIDENT</p><h2>Add Resident</h2></div>
         </div>
-        <form className="resident-add-form" onSubmit={addOne}>
+        <form className="resident-add-form" onSubmit={addOne} noValidate>
           <label>
-            Name
-            <input value={residentName} onChange={(event) => setResidentName(event.target.value)} required />
-          </label>
-          <label>
-            Age
+            Resident name
             <input
-              type="number"
-              min="1"
-              max="125"
-              value={residentAge}
-              onChange={(event) => setResidentAge(event.target.value)}
-              required
+              value={residentName}
+              onChange={(event) => {
+                setResidentName(event.target.value);
+                setNameError("");
+              }}
+              className={nameError ? "form-field-invalid" : ""}
+              aria-invalid={Boolean(nameError)}
+              aria-describedby={nameError ? "resident-name-error" : undefined}
             />
+            {nameError && <span className="form-validation-error" id="resident-name-error" role="alert">{nameError}</span>}
           </label>
-          <button className="staff-button" disabled={busy}>Add Resident</button>
+          <button className="staff-button" disabled={busy}>
+            {busy ? "Adding..." : "Add Resident"}
+          </button>
         </form>
-        <label className="sheet-upload" id="upload-sheet">
-          Upload a CSV sheet (columns: name, age)
-          <input type="file" accept=".csv,text/csv" onChange={uploadSheet} disabled={busy} />
-        </label>
       </section>
       <section className="staff-panel resident-table-panel">
         <div className="staff-card-heading">
@@ -209,7 +147,7 @@ export default function ResidentsPage() {
               <span className={`resident-dot ${statusDotClass(resident.status_label)}`} aria-hidden="true" />
               <div className="resident-row-main">
                 <Link href={`/staff/progress/${resident.resident_id}`} className="resident-name">
-                  {index + 1}. {resident.name}, Age: {resident.age ?? "—"}
+                  {index + 1}. {resident.name}
                 </Link>
                 <span className="resident-status">{resident.status_label}</span>
               </div>
@@ -231,7 +169,22 @@ export default function ResidentsPage() {
               </div>
             </article>
           ))}
-          {residents.length === 0 && <p className="staff-empty">No residents to display.</p>}
+          {loading ? (
+            <p className="staff-empty">Loading residents...</p>
+          ) : error ? (
+            <div className="staff-empty">
+              <p>Residents could not load.</p>
+              <button className="staff-secondary-button" onClick={() => {
+                setLoading(true);
+                setError("");
+                setLoadAttempt((attempt) => attempt + 1);
+              }}>
+                Retry
+              </button>
+            </div>
+          ) : residents.length === 0 ? (
+            <p className="staff-empty">No residents yet. Use Add a Resident to create one.</p>
+          ) : null}
         </div>
       </section>
     </>

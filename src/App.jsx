@@ -1,8 +1,11 @@
 "use client";
 
-import React, { startTransition, useEffect, useState } from "react";
-import { clearResidentId, getResidentId } from "../lib/resident";
-import { getResident } from "../lib/residentSession";
+import React, { startTransition, useCallback, useEffect, useState } from "react";
+import {
+  clearResidentId,
+  getResidentId,
+  getResidentName,
+} from "../lib/resident";
 import CheckinController from "./components/checkin/CheckinController";
 import HomeScreen from "./components/home/HomeScreen";
 import PairingScreen from "./components/pairing/PairingScreen";
@@ -17,7 +20,7 @@ export default function App() {
   useEffect(() => {
     startTransition(() => {
       setResidentId(getResidentId());
-      setResidentName(getResident()?.name || "");
+      setResidentName(getResidentName() || "");
       setReady(true);
     });
   }, []);
@@ -25,6 +28,10 @@ export default function App() {
   const handleStart = () => {
     setStarted(true);
   };
+
+  const handleReturnHome = useCallback(() => {
+    setStarted(false);
+  }, []);
 
   const handleUnpair = () => {
     clearResidentId();
@@ -37,9 +44,9 @@ export default function App() {
     <div className="app-root">
       {!ready ? null : !residentId ? (
         <PairingScreen
-          onPaired={(id, name) => {
+          onPaired={(id) => {
             setResidentId(id);
-            setResidentName(name);
+            setResidentName(getResidentName() || "");
           }}
         />
       ) : !started ? (
@@ -52,6 +59,7 @@ export default function App() {
         <CheckinController
           residentId={residentId}
           residentName={residentName}
+          onReturnHome={handleReturnHome}
         />
       )}
     </div>

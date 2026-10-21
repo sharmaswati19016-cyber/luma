@@ -55,6 +55,18 @@ export default function StaffShell({ session, children }) {
     }
   }
 
+  function logoutButton() {
+    return (
+      <button className="staff-logout" type="button" aria-label="Log out" onClick={handleLogout}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10 17l5-5-5-5M15 12H3" />
+          <path d="M12 3h6a2 2 0 012 2v14a2 2 0 01-2 2h-6" />
+        </svg>
+        Log out
+      </button>
+    );
+  }
+
   return (
     <StaffContext.Provider value={{ session, staffName }}>
       <div className="staff-app">
@@ -66,7 +78,10 @@ export default function StaffShell({ session, children }) {
             <strong>{staffName}</strong>
             <span>{session.user.email}</span>
           </div>
-          <Logo variant="mark" className="staff-mobile-logo" />
+          <div className="staff-mobile-tools">
+            <Logo variant="mark" className="staff-mobile-logo" />
+            {logoutButton()}
+          </div>
           <nav aria-label="Staff navigation">
             {navigation.map((item) => (
               <Link
@@ -84,11 +99,11 @@ export default function StaffShell({ session, children }) {
               </Link>
             ))}
           </nav>
-          <button className="staff-logout" onClick={handleLogout}>Log out</button>
         </aside>
         <main className="staff-main">
           <div className="staff-main-brand">
             <Logo variant="mark" />
+            {logoutButton()}
           </div>
           {error && <p className="staff-error" role="alert">{error}</p>}
           {children}

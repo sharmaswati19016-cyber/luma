@@ -53,6 +53,8 @@ export default function ResidentProgressPage() {
   const [history, setHistory] = useState([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   async function refreshData() {
     const [roster, weeks] = await Promise.all([
@@ -73,11 +75,14 @@ export default function ResidentProgressPage() {
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Resident history could not load.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [residentId]);
+  }, [residentId, loadAttempt]);
 
   async function toggleOffDay() {
     if (!resident) return;
@@ -103,6 +108,16 @@ export default function ResidentProgressPage() {
         {resident && <p>{resident.status_label}</p>}
       </header>
       {error && <p className="staff-error" role="alert">{error}</p>}
+      {error && (
+        <button className="staff-secondary-button" onClick={() => {
+          setLoading(true);
+          setError("");
+          setLoadAttempt((attempt) => attempt + 1);
+        }}>
+          Retry
+        </button>
+      )}
+      {loading && <p className="staff-empty">Loading resident history...</p>}
       <section className="staff-panel off-day-panel">
         <div>
           <p className="staff-eyebrow">TODAY</p>
@@ -116,11 +131,13 @@ export default function ResidentProgressPage() {
           {busy ? "Saving..." : resident?.is_off_today ? "Unmark off day" : "Mark off day"}
         </button>
       </section>
-      <section className="trend-grid">
-        <TrendChart title="Free recall" rows={history} field="recall_avg" maxValue={3} />
-        <TrendChart title="Fluency words" rows={history} field="fluency_avg" maxValue={30} />
-        <TrendChart title="Response time" rows={history} field="response_avg" maxValue={10} unit="s" />
-      </section>
+      {!loading && !error && (
+        <section className="trend-grid">
+          <TrendChart title="Free recall" rows={history} field="recall_avg" maxValue={3} />
+          <TrendChart title="Fluency words" rows={history} field="fluency_avg" maxValue={30} />
+          <TrendChart title="Response time" rows={history} field="response_avg" maxValue={10} unit="s" />
+        </section>
+      )}
       <p className="history-footnote">
         Weekly averages exclude practice check-ins and marked off days. Response time is shown in seconds.
       </p>

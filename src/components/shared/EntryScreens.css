@@ -29,13 +29,6 @@
   height: auto;
 }
 
-.landing-tagline {
-  margin: 28px 0 42px;
-  color: #512e1c;
-  font-family: Georgia, serif;
-  font-size: clamp(24px, 5vw, 32px);
-}
-
 .role-logo {
   width: 112px;
   height: auto;

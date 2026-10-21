@@ -8,7 +8,11 @@ import {
   getDailyWordSet,
   submitCheckin,
 } from "../../../lib/api";
-import { buildPictureOptions, getIconSrc } from "../../../lib/wordIcons";
+import {
+  buildPictureOptions,
+  getIconSrc,
+  scoreFreeRecall,
+} from "../../../lib/wordIcons";
 import { useDeepgramSTT } from "../../../hooks/useDeepgramSTT";
 import Logo from "../shared/Logo";
 import { CHECKIN_QUESTIONS, CHECKIN_TASK_ORDER } from "./questions";
@@ -28,19 +32,6 @@ function shuffledWeekdays() {
   const today = new Date().getDay();
   const choices = [today, (today + 1) % 7, (today + 2) % 7, (today + 3) % 7];
   return choices.sort(() => Math.random() - 0.5).map((day) => weekDays[day]);
-}
-
-export function scoreFreeRecall(transcript, targetWords) {
-  const heardWords = new Set(
-    transcript
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter(Boolean)
-  );
-  return targetWords.reduce((score, word) => {
-    const normalized = word.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    return score + (heardWords.has(normalized) ? 1 : 0);
-  }, 0);
 }
 
 function wordsFromTranscript(text) {
@@ -99,7 +90,7 @@ function ReviewAnswer({ title, text, copy, onRetry, onConfirm }) {
   );
 }
 
-export default function CheckinController({ residentId, residentName }) {
+export default function CheckinController({ residentId, residentName, onReturnHome }) {
   const [wordSet, setWordSet] = useState(null);
   const [category, setCategory] = useState(null);
   const [stage, setStage] = useState("loading");
@@ -113,6 +104,7 @@ export default function CheckinController({ residentId, residentName }) {
   const [secondsLeft, setSecondsLeft] = useState(30);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [showLearningWords, setShowLearningWords] = useState(true);
   const keyterms = useMemo(
     () => (category ? category.category.split(/\s+/) : []),
@@ -122,6 +114,7 @@ export default function CheckinController({ residentId, residentName }) {
   const listeningRef = useRef(false);
   const stopRef = useRef(stop);
   const lastTapAt = useRef(0);
+  const doneTimer = useRef(null);
   const words = useMemo(
     () => (wordSet ? [wordSet.word_1, wordSet.word_2, wordSet.word_3] : []),
     [wordSet]
@@ -136,6 +129,9 @@ export default function CheckinController({ residentId, residentName }) {
           getDailyFluencyCategory(residentId),
         ]);
         if (!active) return;
+        if (!todayWords || !todayCategory) {
+          throw new Error("Today's check-in content is not available.");
+        }
         setWordSet(todayWords);
         setCategory(todayCategory);
         setWeekOptions(shuffledWeekdays());
@@ -146,8 +142,9 @@ export default function CheckinController({ residentId, residentName }) {
         ]));
         setStage("learning");
       } catch (cause) {
+        console.warn("Today's check-in could not load:", cause);
         if (active) {
-          setError(cause instanceof Error ? cause.message : "Today's check-in could not load.");
+          setError("Today's check-in could not load. Check the connection and retry.");
           setStage("error");
         }
       }
@@ -156,7 +153,7 @@ export default function CheckinController({ residentId, residentName }) {
     return () => {
       active = false;
     };
-  }, [residentId]);
+  }, [residentId, loadAttempt]);
 
   useEffect(() => {
     listeningRef.current = listening;
@@ -167,6 +164,20 @@ export default function CheckinController({ residentId, residentName }) {
     if (listeningRef.current) stopRef.current();
     window.speechSynthesis?.cancel();
   }, []);
+
+  useEffect(() => {
+    if (stage !== "done") return;
+    doneTimer.current = window.setTimeout(() => {
+      doneTimer.current = null;
+      onReturnHome();
+    }, 5000);
+    return () => {
+      if (doneTimer.current !== null) {
+        window.clearTimeout(doneTimer.current);
+        doneTimer.current = null;
+      }
+    };
+  }, [onReturnHome, stage]);
 
   useEffect(() => {
     if (stage !== "learning" || words.length !== 3) return;
@@ -208,6 +219,14 @@ export default function CheckinController({ residentId, residentName }) {
     setStage(nextStage);
   }
 
+  function returnHome() {
+    if (doneTimer.current !== null) {
+      window.clearTimeout(doneTimer.current);
+      doneTimer.current = null;
+    }
+    onReturnHome();
+  }
+
   async function finishCheckin() {
     setSubmitting(true);
     setError("");
@@ -239,7 +258,14 @@ export default function CheckinController({ residentId, residentName }) {
       });
       setStage("done");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The check-in could not be submitted.");
+      const message = cause instanceof Error ? cause.message : "";
+      if (/a check-in for today has already been submitted for this resident/i.test(message)) {
+        setError("You've already done today's check-in.");
+        setStage("already-done");
+      } else {
+        console.warn("Today's check-in could not be submitted:", cause);
+        setError("We couldn't save today's check-in. Check the connection, then retry.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -251,6 +277,7 @@ export default function CheckinController({ residentId, residentName }) {
       setSelectedPictures((current) => current.filter((item) => item !== index));
       return;
     }
+    if (selectedPictures.length >= 3) return;
     const elapsedSeconds = (now - lastTapAt.current) / 1000;
     setTapTimes((current) => [...current, elapsedSeconds]);
     lastTapAt.current = now;
@@ -261,7 +288,32 @@ export default function CheckinController({ residentId, residentName }) {
     return <main className="checkin-screen"><p>Getting today&apos;s check-in ready...</p><Logo variant="mark" className="checkin-logo" /></main>;
   }
   if (stage === "error") {
-    return <main className="checkin-screen"><p className="checkin-error" role="alert">{error}</p><Logo variant="mark" className="checkin-logo" /></main>;
+    return (
+      <main className="checkin-screen">
+        <p className="checkin-error" role="alert">{error}</p>
+        <button className="checkin-primary" onClick={() => {
+          setError("");
+          setStage("loading");
+          setLoadAttempt((attempt) => attempt + 1);
+        }}>
+          Retry
+        </button>
+        <Logo variant="mark" className="checkin-logo" />
+      </main>
+    );
+  }
+  if (stage === "already-done") {
+    return (
+      <main className="checkin-screen checkin-done">
+        <div className="checkin-card">
+          <p className="checkin-error" role="status">{error}</p>
+          <button className="checkin-secondary" onClick={returnHome}>
+            Back to home
+          </button>
+        </div>
+        <Logo variant="mark" className="checkin-logo" />
+      </main>
+    );
   }
   if (stage === "done") {
     return (
@@ -269,7 +321,10 @@ export default function CheckinController({ residentId, residentName }) {
         <div className="checkin-card">
           <p className="checkin-step">ALL DONE</p>
           <h1>Nice work!</h1>
-          <p>See you tomorrow, {residentName}.</p>
+          <p>See you tomorrow{residentName ? `, ${residentName}` : ""}.</p>
+          <button className="checkin-secondary" onClick={returnHome}>
+            Back to home
+          </button>
         </div>
         <Logo variant="mark" className="checkin-logo" />
       </main>
@@ -295,7 +350,9 @@ export default function CheckinController({ residentId, residentName }) {
     }
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(
-      new SpeechSynthesisUtterance(stage === "learning" ? `${prompt} ${words.join(", ")}` : prompt)
+      new SpeechSynthesisUtterance(stage === "learning"
+        ? `${CHECKIN_QUESTIONS.learning.instruction} ${prompt} ${words.join(", ")}`
+        : prompt)
     );
   }
 
@@ -321,17 +378,6 @@ export default function CheckinController({ residentId, residentName }) {
           <p className="checkin-step">{CHECKIN_QUESTIONS.learning.instruction}</p>
           <h1>{CHECKIN_QUESTIONS.learning.prompt}</h1>
           {showLearningWords && <p className="checkin-word-list">{words.join(" · ")}</p>}
-          <button
-            className="checkin-speaker"
-            type="button"
-            aria-label="Hear the words again"
-            onClick={() => {
-              window.speechSynthesis?.cancel();
-              window.speechSynthesis?.speak(new SpeechSynthesisUtterance(words.join(", ")));
-            }}
-          >
-            <Image src="/assets/qspeaker.png" alt="" width={28} height={28} />
-          </button>
           <button className="checkin-primary" onClick={() => setStage("orientation")}>
             {CHECKIN_QUESTIONS.learning.button}
           </button>
@@ -438,9 +484,10 @@ export default function CheckinController({ residentId, residentName }) {
                 key={`${option}-${index}`}
                 className={`picture-tile ${selectedPictures.includes(index) ? "selected" : ""}`}
                 type="button"
-                aria-label={`Picture ${index + 1}`}
+                aria-label={option}
                 aria-pressed={selectedPictures.includes(index)}
                 onClick={(event) => recordPictureTap(index, event)}
+                disabled={!selectedPictures.includes(index) && selectedPictures.length >= 3}
               >
                 <Image src={getIconSrc(option)} alt="" width={100} height={100} unoptimized />
               </button>
@@ -451,7 +498,7 @@ export default function CheckinController({ residentId, residentName }) {
             disabled={submitting}
             onClick={finishCheckin}
           >
-            {submitting ? "Finishing..." : CHECKIN_QUESTIONS.recognition.button}
+            {submitting ? "Finishing..." : error ? "Retry" : CHECKIN_QUESTIONS.recognition.button}
           </button>
           {error && <p className="checkin-error" role="alert">{error}</p>}
         </section>

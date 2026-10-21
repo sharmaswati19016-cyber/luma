@@ -7,6 +7,8 @@ import { getResidentsList } from "../../../../lib/api";
 export default function ProgressPage() {
   const [residents, setResidents] = useState([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -16,11 +18,14 @@ export default function ProgressPage() {
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Resident progress could not load.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAttempt]);
 
   return (
     <>
@@ -39,7 +44,7 @@ export default function ProgressPage() {
           >
             <span className={`resident-dot ${resident.status_label === "Worth a check-up conversation" ? "flag-dot" : resident.status_label === "Worth watching" ? "watch-dot" : "steady-dot"}`} />
             <span>
-              <strong>{index + 1}. {resident.name}, Age: {resident.age ?? "—"}</strong>
+              <strong>{index + 1}. {resident.name}</strong>
               <small>{resident.status_label}</small>
             </span>
             <span className="progress-date">
@@ -50,7 +55,22 @@ export default function ProgressPage() {
             <span aria-hidden="true">›</span>
           </Link>
         ))}
-        {residents.length === 0 && <p className="staff-empty">No residents to display.</p>}
+        {loading ? (
+          <p className="staff-empty">Loading residents...</p>
+        ) : error ? (
+          <div className="staff-empty">
+            <p>Resident progress could not load.</p>
+            <button className="staff-secondary-button" onClick={() => {
+              setLoading(true);
+              setError("");
+              setLoadAttempt((attempt) => attempt + 1);
+            }}>
+              Retry
+            </button>
+          </div>
+        ) : residents.length === 0 ? (
+          <p className="staff-empty">No residents yet. Use Add a Resident to create one.</p>
+        ) : null}
       </section>
     </>
   );

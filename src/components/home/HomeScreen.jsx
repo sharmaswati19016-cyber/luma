@@ -9,7 +9,6 @@ import "./Home.css";
 // Images live in public/assets/ and are served from /assets/...
 const sun = "/assets/sun.png";
 const moon = "/assets/moon.png";
-const homespeaker = "/assets/homespeaker.png";
 
 /**
  * HomeScreen
@@ -41,7 +40,7 @@ export default function HomeScreen({ residentName, onStart, onUnpair }) {
     // pattern used across every resident screen.
     if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(
-        `${label}, ${residentName}. Today is ${formattedDate}.`
+        `${label}${residentName ? `, ${residentName}` : ""}. Today is ${formattedDate}.`
       );
       utterance.rate = 0.9;
       window.speechSynthesis.cancel();
@@ -52,25 +51,23 @@ export default function HomeScreen({ residentName, onStart, onUnpair }) {
   return (
     <div className="home-screen">
       <header className="home-top">
-        <Image src={icon} alt="" className="home-icon" width={56} height={56} />
+        <Image src={icon} alt="" className="home-icon" width={100} height={100} />
 
         <div className="home-greeting-block">
           <button
             className="home-speaker-btn"
             onClick={handleSpeak}
-            aria-label="Read greeting aloud"
+            aria-label="Read aloud"
           >
-            <Image
-              src={homespeaker}
-              alt=""
-              className="home-speaker-icon"
-              width={28}
-              height={28}
-            />
+            <span className="home-speaker-circle">
+              <svg className="home-speaker-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11 5 6 9H3v6h3l5 4V5Z" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+              </svg>
+            </span>
             <span className="home-greeting-label">{label}</span>
           </button>
 
-          <h1 className="home-name">{residentName}</h1>
           <p className="home-date">{formattedDate}</p>
         </div>
       </header>
@@ -79,10 +76,10 @@ export default function HomeScreen({ residentName, onStart, onUnpair }) {
         <button className="home-start-btn" onClick={onStart}>
           Start Today&apos;s Check-in
         </button>
-        <Logo variant="mark" className="resident-mark" />
         <button className="home-unpair-btn" onClick={onUnpair}>
           This isn&apos;t my device
         </button>
+        <Logo variant="mark" className="resident-mark" />
       </div>
     </div>
   );

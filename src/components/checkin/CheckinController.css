@@ -21,18 +21,6 @@
   font-weight: 700;
 }
 
-.checkin-speaker {
-  display: grid;
-  width: 56px;
-  height: 56px;
-  margin: 2px auto 0;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: #e6dbce;
-  cursor: pointer;
-}
-
 .checkin-progress {
   height: 8px;
   border-radius: 99px;

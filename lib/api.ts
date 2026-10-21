@@ -32,21 +32,12 @@ export type FluencyCategory = { id: number; category: string };
 export type ResidentListRow = {
   resident_id: string;
   name: string;
-  age: number | null;
   pairing_code: string | null;
   status: string;
   status_label: string;
   reason_summary: string | null;
   last_checkin_date: string | null;
   is_off_today: boolean;
-};
-
-export type BulkResidentResult = {
-  resident_id: string;
-  name: string;
-  age: number | null;
-  pairing_code: string;
-  status: string;
 };
 
 // Small helper: run an rpc call and throw a readable error if it fails
@@ -71,67 +62,97 @@ export async function staffSignUp(
   name: string,
   facilityCode: string
 ) {
+  if (password.length < 6) {
+    throw new Error("Choose a password with at least 6 characters.");
+  }
   const facility = await validateFacilityCode(facilityCode);
   if (!facility) throw new Error("That facility code is not valid.");
 
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) throw new Error(error.message);
-  // If email confirmation is ON in Supabase, there is no session yet
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: name } },
+  });
+  if (error) {
+    if (/already registered|already exists|email.*taken/i.test(error.message)) {
+      throw new Error("This email is already registered. Please log in instead.");
+    }
+    if (/password.*(weak|short|least)|weak password/i.test(error.message)) {
+      throw new Error("Choose a password with at least 6 characters.");
+    }
+    if (/invalid facility code/i.test(error.message)) {
+      throw new Error("That facility code is not valid.");
+    }
+    throw new Error(error.message);
+  }
+  if (data.user?.identities?.length === 0) {
+    throw new Error("This email is already registered. Please log in instead.");
+  }
   if (!data.session) {
-    throw new Error("Email confirmation is on. Turn it off in Supabase for the demo.");
+    throw new Error("Confirm email is still on in Supabase. Turn it off for testing.");
   }
 
   await rpc("create_staff_profile", { p_code: facilityCode, p_name: name });
 }
 
 export async function staffLogin(email: string, password: string) {
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    if (/invalid login credentials|invalid email or password/i.test(error.message)) {
+      throw new Error("Email or password is incorrect.");
+    }
+    if (/email not confirmed|email_not_confirmed/i.test(error.message)) {
+      throw new Error("Your email isn't confirmed yet. Please check your inbox, or ask your administrator to confirm it.");
+    }
+    throw new Error(error.message);
+  }
+  if (!data.session) throw new Error("Unable to start a staff session.");
 }
 
 export async function staffLogout() {
-  await supabase.auth.signOut();
+  const { error } = await supabase.auth.signOut();
+  if (error) throw new Error(error.message);
 }
 
 export async function getSession() {
-  const { data } = await supabase.auth.getSession();
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw new Error(error.message);
   return data.session;
 }
 
 // The logged-in staff member's facility (allowed by the staff RLS policy)
-export async function getMyFacilityId(): Promise<string> {
+export async function getMyFacilityId(): Promise<string | null> {
   const { data, error } = await supabase
     .from("staff")
     .select("facility_id")
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
-  return data.facility_id;
+  return data?.facility_id ?? null;
 }
 
-export async function getMyStaffName(): Promise<string> {
+export async function getMyStaffName(): Promise<string | null> {
   const { data, error } = await supabase
     .from("staff")
     .select("name")
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
-  return data.name;
+  return data?.name ?? null;
 }
 
-export async function getMyFacilityName(): Promise<string> {
-  const facilityId = await getMyFacilityId();
-  const { data, error } = await supabase
-    .from("facilities")
-    .select("name")
-    .eq("id", facilityId)
-    .single();
-  if (error) throw new Error(error.message);
-  return data.name;
+export async function getMyFacilityName(): Promise<string | null> {
+  const name = await rpc<string>("get_my_facility_name");
+  return name || null;
 }
 
 // ---------- Staff: dashboard ----------
 export async function getFacilitySummary() {
   const rows = await rpc<FacilitySummary[]>("get_facility_summary");
-  return rows[0];
+  return rows[0] ?? {
+    total_residents: 0,
+    flagged_count: 0,
+    watch_count: 0,
+    steady_count: 0,
+  };
 }
 
 export async function getFacilityRoster() {
@@ -145,13 +166,13 @@ export async function getResidentHistory(residentId: string, weeks = 8) {
   });
 }
 
-// "View All Residents" needs age + pairing code, which the roster doesn't return,
-// so this reads the residents table directly (allowed by RLS for staff).
+// The roster omits pairing codes, so fetch them from the residents table and
+// merge them with status data returned by the roster RPC.
 export async function getResidentsList() {
   const [{ data, error }, roster] = await Promise.all([
     supabase
       .from("residents")
-      .select("id, name, age, pairing_code")
+      .select("id, name, pairing_code")
       .order("name"),
     getFacilityRoster(),
   ]);
@@ -164,7 +185,6 @@ export async function getResidentsList() {
     return {
       resident_id: resident.id,
       name: resident.name,
-      age: resident.age,
       pairing_code: resident.pairing_code,
       status: status.status,
       status_label: status.status_label,
@@ -182,15 +202,6 @@ export async function createResident(name: string) {
     { p_name: name }
   );
   return rows[0];
-}
-
-// residents example: [{ name: "Priya Nair", age: 76 }]
-export async function addResidentsBulk(residents: { name: string; age?: number }[]) {
-  const facilityId = await getMyFacilityId();
-  return rpc<BulkResidentResult[]>("add_residents_bulk", {
-    p_facility_id: facilityId,
-    p_residents: residents,
-  });
 }
 
 export async function regeneratePairingCode(residentId: string) {
@@ -212,6 +223,10 @@ export async function unmarkOffDay(residentId: string, date?: string) {
 // ---------- Resident tablet (no login) ----------
 export async function pairDevice(code: string) {
   return rpc<string>("pair_device", { p_pairing_code: code }); // returns resident id
+}
+
+export async function getResidentName(residentId: string): Promise<string | null> {
+  return rpc<string | null>("get_resident_name", { p_resident_id: residentId });
 }
 
 // ---------- Check-in (used by resident AND staff-assisted) ----------

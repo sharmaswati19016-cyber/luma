@@ -1,9 +1,7 @@
 import Image from "next/image";
-import fullLogo from "../../public/assets/logo.png";
-import markLogo from "../../public/assets/logomark.png";
 
 export default function Logo({ variant = "mark", className = "" }) {
-  const logo = variant === "full" ? fullLogo : markLogo;
+  const logo = variant === "full" ? "/assets/logo.png" : "/assets/logomark.png";
 
   return (
     <Image
